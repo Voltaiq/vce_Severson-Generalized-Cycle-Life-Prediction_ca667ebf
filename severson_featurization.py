@@ -120,12 +120,12 @@ def cyc_end_of_life(df,name,cap_percent, predict):
     returns: cycle number at which cap_percent % of initial cycle capacity is reached    
     '''
     end_cyc = 0
-    # ref_cycle is the reference cycle (index) that should be chosen for normalization. Default is to use the second logged cycle
-    ref_cycle = 1
+    
     
     df_eol = df.copy()
-
-    cap_initial = df_eol['cyc_discharge_capacity'][ref_cycle]
+    # ref_cycle is the reference cycle (index) that should be chosen for normalization. Default is to use the second logged cycle
+    ref_cycle = df_eol.cycle_number.iloc[1]
+    cap_initial = df_eol['cyc_discharge_capacity'].iloc[1]
     df_eol['Capacity retention'] = df_eol['cyc_discharge_capacity']/cap_initial
     
     # logic to calculate the cycle to cap_percent percent capacity. Can't just take the first value that matches, because could have a dip for other reasons.
@@ -143,11 +143,13 @@ def cyc_end_of_life(df,name,cap_percent, predict):
         consecutive_cycles = indices_difference_five[indices_difference_five <= 5].index.drop(0, errors = 'ignore')
         if len(consecutive_cycles) > 0:
             end_cyc = indices_below_cap_percent[consecutive_cycles[0]] -3
+            if end_cyc <0:
+                end_cyc = indices_below_cap_percent[consecutive_cycles[0]]
         else:       
-            print(f"Test {name} does not reach {cap_percent*100}%. Second-to-last cycle capacity retention: {df_eol['Capacity retention'].iloc[-2]}")
+            print(f"Test {name} does not reach {cap_percent*100}%. Second-to-last cycle capacity retention: {df_eol['Capacity retention'].iloc[-2]*100}%")
     else:
         if not predict:
-            print(f"Test {name} does not reach {cap_percent*100}%. Second-to-last cycle capacity retention: {df_eol['Capacity retention'].iloc[-2]}")
+            print(f"Test {name} does not reach {cap_percent*100}%. Second-to-last cycle capacity retention: {df_eol['Capacity retention'].iloc[-2]*100}%")
     return end_cyc   
 
 
