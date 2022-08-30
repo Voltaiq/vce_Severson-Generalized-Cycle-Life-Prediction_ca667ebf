@@ -9,6 +9,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 
     
 class TrainedModel:
@@ -120,13 +121,21 @@ class TrainedModel:
     
     def parity_plot(self):
         ''' create a parity plot of the real vs predicted values. Will plot train and test predictions'''
-        plt.scatter(10**self.y_train,10**self.train_predict, label = 'Train')
-        plt.scatter(10**self.y_test,10**self.test_predict, label = 'Predict')
+#         plt.rc('font', family='serif')
+#         plt.rc('xtick', labelsize='x-small')
+#         plt.rc('ytick', labelsize='x-small')
+        sns.set_style("ticks")
+        sns.set_context("paper")
+        sns.color_palette("Set2")
+
+        plt.scatter(10**self.y_train,10**self.train_predict, label = 'Train', c = sns.color_palette("Set2")[0])
+        plt.scatter(10**self.y_test,10**self.test_predict, label = 'Test',c = sns.color_palette("Set2")[-1])
         max_axis = 10**max([max(self.y_train.log_cyc_life),max(self.y_test.log_cyc_life),max(self.train_predict),max(self.test_predict)])
         plt.plot([0,max_axis],[0,max_axis])
         plt.legend(bbox_to_anchor=(1, 0.5),loc = 'center left')
         plt.xlabel('Observed cycle life')
         plt.ylabel('Predicted cycle life')
         plt.title("Parity plot on " + self.model + " model")
+        plt.axis('square')
         plt.show()
         
