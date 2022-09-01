@@ -40,6 +40,7 @@ def load_data(test,cyc_1, cyc_2):
     Only load data for cycles cyc_1 and cyc_2.
     Return a pandas dataframe
     '''
+#     test.clear_cache()
     reader = test.make_time_series_reader()
     reader.add_trace_keys('h_potential','h_discharge_capacity','h_test_time', 'h_current')
     reader.filter_trace('h_current', TraceFilterOperation.LESS_THAN, 0)
@@ -193,12 +194,11 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
 
     for t in tr_list:
         # calculate time-series dependend statistics
-        
+
         data = load_data(t,cycle_start, cycle_end)
-        
-        
-        
+
         interp_data = interpolate_data(data, t.name)
+
         deltaQ = delta_QV(interp_data, cycle_start, cycle_end)
 
         device_name.append(t.name)
@@ -224,6 +224,7 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
             
         else:
             cycle = t.get_cycle_stats()
+
         if predict:
             # average cycle time in hours
             avg_cyc_time.append(np.nanmean(cycle.cyc_total_cycle_time)/3600) # might want to adjust this to ignore 0's and -#s
@@ -242,8 +243,9 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
         q_2.append(float(cycle[cycle['cycle_number']==cyc2_num]['cyc_discharge_capacity'])) # we are zero-indexed instead of 1-indexed
         maxQ_q2.append(max(cycle['cyc_discharge_capacity']) - float(cycle[cycle['cycle_number']==cyc2_num]['cyc_discharge_capacity'])) # we are zero-indexed instead of 1-indexed
         q_100.append(float(cycle[cycle['cycle_number']==cycle_end]['cyc_discharge_capacity']))
-        
+
         cyc_life = cyc_end_of_life(cycle,t.name,cap_percent, predict)
+
         if cyc_life == 0:
             y_cyc_life.append("unfinished")
         else:
@@ -254,6 +256,7 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
         
         total_cycles.append(t.total_cycles)
 
+    
     X = pd.DataFrame()
     
     X['min_deltaQ'] = min_deltaQ
@@ -279,7 +282,6 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
     else:
         y = pd.DataFrame(y_cyc_life,columns = ['cyc_life'])
 
-    
     if not predict:
         return X, y
     else:

@@ -238,22 +238,22 @@ class CLPrediction:
     
     def plot_model_stats(self, stat_type):
         ''' function to create a bar-plot of model stats of stat_type'''
-        plt.rc('font', family='sans-serif')
-        sns.set_style("ticks")
-        sns.set_context("paper")
-        plt.rc('xtick', labelsize='medium')
-        plt.rc('ytick', labelsize='medium')
-        plt.rc('axes', titlesize='large')
-        sns.color_palette("Set2")
+#         plt.rc('font', family='sans-serif')
+#         sns.set_style("ticks")
+#         sns.set_context("paper")
+#         plt.rc('xtick', labelsize='medium')
+#         plt.rc('ytick', labelsize='medium')
+#         plt.rc('axes', titlesize='large')
+#         sns.color_palette("Set2")
 
         model_stat_df = self.return_model_stats()
         if stat_type == 'MAPE':
-            ax = model_stat_df.plot.bar(y = ['Train MAPE', 'Test MAPE'], rot = 35, ylabel = 'Mean Absolute Percentage Error (%)', 
-                                        figsize = (5,5), colormap = sns.color_palette("Set2", as_cmap=True),fontsize = 10)
+            ax = model_stat_df.plot.bar(y = ['Train MAPE', 'Test MAPE'], rot = 35, ylabel = 'Mean Absolute Percentage Error (%)')#, 
+                                        #figsize = (5,5), colormap = sns.color_palette("Set2", as_cmap=True),fontsize = 15)
             plt.show()
         elif stat_type == 'RMSE':
-            ax = model_stat_df.plot.bar(y = ['Train RMSE', 'Test RMSE'], rot = 35, ylabel = 'Root Mean Squared Error (Cycles)', 
-                                        figsize = (5,5), colormap = sns.color_palette("Set2", as_cmap=True),fontsize = 10)
+            ax = model_stat_df.plot.bar(y = ['Train RMSE', 'Test RMSE'], rot = 35, ylabel = 'Root Mean Squared Error (Cycles)')#, 
+                                        #figsize = (5,5), colormap = sns.color_palette("Set2", as_cmap=True),fontsize = 10)
             plt.show()
 
     def calc_predicted_cyclelife(self):

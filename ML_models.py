@@ -9,7 +9,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
+# import seaborn as sns
+import plotly.graph_objects as go
 
     
 class TrainedModel:
@@ -124,12 +125,16 @@ class TrainedModel:
 #         plt.rc('font', family='serif')
 #         plt.rc('xtick', labelsize='x-small')
 #         plt.rc('ytick', labelsize='x-small')
-        sns.set_style("ticks")
-        sns.set_context("paper")
-        sns.color_palette("Set2")
-
-        plt.scatter(10**self.y_train,10**self.train_predict, label = 'Train', c = sns.color_palette("Set2")[0])
-        plt.scatter(10**self.y_test,10**self.test_predict, label = 'Test',c = sns.color_palette("Set2")[-1])
+#         sns.set_style("ticks")
+#         sns.set_context("paper")
+#         sns.color_palette("Set2")
+#         fig = go.Figure()
+#         fig.add_traces(go.Scatter(x = 10**self.y_train,y = 10**self.train_predict, name = 'Train', opacity = 0.6))
+#         fig.show()
+                      
+        
+        plt.scatter(10**self.y_train,10**self.train_predict, label = 'Train', alpha = 0.6)#, c = '#68CCCA')
+        plt.scatter(10**self.y_test,10**self.test_predict, label = 'Test', alpha = 0.6)#,c = '#FDA1FF')
         max_axis = 10**max([max(self.y_train.log_cyc_life),max(self.y_test.log_cyc_life),max(self.train_predict),max(self.test_predict)])
         plt.plot([0,max_axis],[0,max_axis])
         plt.legend(bbox_to_anchor=(1, 0.5),loc = 'center left')
