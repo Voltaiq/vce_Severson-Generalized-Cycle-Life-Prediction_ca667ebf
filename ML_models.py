@@ -1,5 +1,3 @@
-from sklearn.utils._testing import ignore_warnings
-from sklearn.exceptions import ConvergenceWarning
 from sklearn.dummy import DummyRegressor
 from sklearn.linear_model import ElasticNetCV
 from sklearn.pipeline import Pipeline
@@ -9,8 +7,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-# import seaborn as sns
-import plotly.graph_objects as go
+
 
     
 class TrainedModel:
@@ -22,6 +19,8 @@ class TrainedModel:
         self.model = model
         self.train_test_data = train_test_tuple
         self.pipeline = None
+        self.X_train_full = train_test_tuple[0]
+        self.X_test_full = train_test_tuple[1]
         self.X_train = train_test_tuple[0]
         self.X_test = train_test_tuple[1]
         self.X_test_array = None
@@ -40,12 +39,11 @@ class TrainedModel:
     def get_model(self):
         return self.model
     
-    @ignore_warnings(category=ConvergenceWarning)
     def train_model(self):
         ''' function to train the model. Training will depend on model type'''
         if self.model == 'Severson variance':
             print("Training Severson variance model")
-            self.pipeline = Pipeline([('scaler', StandardScaler()), ('enet', ElasticNetCV(l1_ratio=self.l1_ratios, cv=5, random_state=0))])
+            self.pipeline = Pipeline([('scaler', StandardScaler()), ('enet', ElasticNetCV(l1_ratio=self.l1_ratios, cv=5, random_state=0, max_iter = 25000))])
 
             self.X_train = self.X_train['var_deltaQ']
             self.X_test = self.X_test['var_deltaQ']
@@ -60,11 +58,11 @@ class TrainedModel:
 
         elif self.model == 'Severson discharge':
             print("Training Severson discharge model")
-            self.X_train = self.X_train.drop(columns = ['Name','deltaQ_lowV'])
-            self.X_test = self.X_test.drop(columns = ['Name','deltaQ_lowV'])
+            self.X_train = self.X_train.drop(columns = ['Name','Dataset_group']) #'deltaQ_lowV'
+            self.X_test = self.X_test.drop(columns = ['Name','Dataset_group']) #,'deltaQ_lowV'
             self.X_test_array = np.array(self.X_test)
 
-            self.pipeline =  Pipeline([('scaler', StandardScaler()), ('enet', ElasticNetCV(l1_ratio=self.l1_ratios, cv=5, random_state=0))])
+            self.pipeline =  Pipeline([('scaler', StandardScaler()), ('enet', ElasticNetCV(l1_ratio=self.l1_ratios, cv=5, random_state=0, max_iter = 25000))])
             self.pipeline.fit(np.array(self.X_train), np.ravel(self.y_train))
 
             self.train_predict = self.pipeline.predict(np.array(self.X_train))
@@ -93,7 +91,7 @@ class TrainedModel:
             self.X_predict = self.X_predict['var_deltaQ']
             self.X_predict_array = np.array(self.X_predict).reshape(-1, 1)
         elif self.model == 'Severson discharge':
-            self.X_predict = self.X_predict.drop(columns = ['Name','deltaQ_lowV'])
+            self.X_predict = self.X_predict.drop(columns = ['Name','Dataset_group'])
             self.X_predict_array = np.array(self.X_predict)
         elif self.model == 'Dummy':
             self.X_predict_array = self.X_predict
@@ -118,29 +116,59 @@ class TrainedModel:
         train_rmse = mean_squared_error(np.power(10, self.y_train), np.power(10, self.train_predict), squared=False)
         test_rmse = mean_squared_error(np.power(10, self.y_test), np.power(10, self.test_predict), squared=False)
         return (train_rmse, test_rmse)
+    
+    def get_grouped_MAPE(self,train_vs_test, idx = None):
+        ''' return mean absolute percentage error. Returns a tuple of (train, test) errors.'''
+        if train_vs_test == 'train':
+            return 100*mean_absolute_percentage_error(np.power(10, self.y_train), np.power(10, self.train_predict))
+        else:
+            return 100*mean_absolute_percentage_error(np.power(10, self.y_test.log_cyc_life[idx]), np.power(10, self.test_predict[idx]))
+        
+    
+    def get_grouped_RMSE(self):
+        ''' return root mean squared error. Returns a tuple of (train, test) errors.'''
+        train_rmse = mean_squared_error(np.power(10, self.y_train), np.power(10, self.train_predict), squared=False)
+        test_rmse = mean_squared_error(np.power(10, self.y_test), np.power(10, self.test_predict), squared=False)
+        return (train_rmse, test_rmse)
 
     
     def parity_plot(self):
         ''' create a parity plot of the real vs predicted values. Will plot train and test predictions'''
-#         plt.rc('font', family='serif')
-#         plt.rc('xtick', labelsize='x-small')
-#         plt.rc('ytick', labelsize='x-small')
-#         sns.set_style("ticks")
-#         sns.set_context("paper")
-#         sns.color_palette("Set2")
-#         fig = go.Figure()
-#         fig.add_traces(go.Scatter(x = 10**self.y_train,y = 10**self.train_predict, name = 'Train', opacity = 0.6))
-#         fig.show()
-                      
         
-        plt.scatter(10**self.y_train,10**self.train_predict, label = 'Train', alpha = 0.6)#, c = '#68CCCA')
-        plt.scatter(10**self.y_test,10**self.test_predict, label = 'Test', alpha = 0.6)#,c = '#FDA1FF')
-        max_axis = 10**max([max(self.y_train.log_cyc_life),max(self.y_test.log_cyc_life),max(self.train_predict),max(self.test_predict)])
-        plt.plot([0,max_axis],[0,max_axis])
-        plt.legend(bbox_to_anchor=(1, 0.5),loc = 'center left')
+        unique_groups = pd.unique(self.X_test_full.Dataset_group)
+        train_unique_groups = pd.unique(self.X_train_full.Dataset_group)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        for group in train_unique_groups:
+            train_idx = self.X_train_full[self.X_train_full.Dataset_group == group].index
+            model_resetidx = self.X_train_full.reset_index()
+            train_reset_idx = model_resetidx[model_resetidx['index'].isin(train_idx)].index
+            plt.scatter(10**self.y_train.log_cyc_life[train_idx],10**self.train_predict[train_reset_idx], 
+                        label = 'Train '+group, alpha = 0.6)#, c = '#68CCCA')
+
+        for group in unique_groups:            
+            index = self.X_test_full[self.X_test_full.Dataset_group == group].index
+            model_resetidx = self.X_test_full.reset_index()
+            reset_idx = model_resetidx[model_resetidx['index'].isin(index)].index
+
+            plt.scatter(10**self.y_test.log_cyc_life[index],10**self.test_predict[reset_idx], 
+                        label = 'Test '+group, alpha = 0.6,marker='v')#,c = '#FDA1FF')
+
+        max_axis = 10**max([max(self.y_train.log_cyc_life),
+                                max(self.y_test.log_cyc_life),
+                                max(self.train_predict),
+                                max(self.test_predict)])
+        min_axis = 10**min([min(self.y_train.log_cyc_life),
+                                min(self.y_test.log_cyc_life),
+                                min(self.train_predict),
+                                min(self.test_predict)])
+        plt.plot([min_axis,max_axis],[min_axis,max_axis])
+        plt.legend(bbox_to_anchor=(1, 0.5),loc = 'center left') # uncomment to get legend
+        # ax.set_ylim(0,5000)
+        # ax.set_xlim(0,5000)
         plt.xlabel('Observed cycle life')
         plt.ylabel('Predicted cycle life')
-        plt.title("Parity plot on " + self.model + " model")
+        plt.title("Parity plot of " + self.model + " model")
         plt.axis('square')
         plt.show()
-        

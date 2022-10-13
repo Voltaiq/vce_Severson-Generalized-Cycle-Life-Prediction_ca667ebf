@@ -6,6 +6,9 @@ import pandas as pd
 from functools import reduce
 import scipy
 from scipy.interpolate import interp1d
+import cl_widgets as cpw
+import importlib
+importlib.reload(cpw)
 
 
 # filter test record functions
@@ -108,7 +111,7 @@ def slope_intercept(df,start,end):
     z = np.polyfit(x,y,1)
     return z
 
-def cyc_end_of_life(df,name,cap_percent, predict):
+def cyc_end_of_life(df,name,cap_percent, predict,ref_cyc):
     ''' 
     Calculates the cycle at which the test drops below cap_percent % of initial capacity
     for the cycle-stats dataframe passsed to the function. Bases initial capacity on the second cycle of a test. 
@@ -117,16 +120,27 @@ def cyc_end_of_life(df,name,cap_percent, predict):
     name - name of the test record
     cap_percent - percentage value which defines end of life.
     predict - Boolean stating whether this calculation is being performed on prediction data, where the expectation is that many tests might not have reached the cap_percent yet
+    ref_cyc = cycle ordinal within the data to choose as the reference cycle. Default is cycle 1 (given from calc_X_and_y)
     
     returns: cycle number at which cap_percent % of initial cycle capacity is reached    
     '''
     end_cyc = 0
     
-    
     df_eol = df.copy()
-    # ref_cycle is the reference cycle (index) that should be chosen for normalization. Default is to use the second logged cycle
-    ref_cycle = df_eol.cycle_number.iloc[1]
-    cap_initial = df_eol['cyc_discharge_capacity'].iloc[1]
+    # ref_cyc is the reference cycle (index) that should be chosen for normalization. 
+    try:
+        cap_initial = float(df_eol[df_eol['cycle_number']==ref_cyc]['cyc_discharge_capacity'])
+    except:
+        print(f"Cycle {ref_cyc} does not exist for test {name}. Attempting to use cycle ordinal instead.")
+        try:
+            ref_cycle = df_eol.cycle_number.iloc[ref_cyc]
+            cap_initial = df_eol['cyc_discharge_capacity'].iloc[ref_cyc]
+            print(f"Using reference cycle {ref_cycle} for test {name}")
+        except:
+            print(f"No appropriate cycle could be chosen for test {name}. Aborting featurization.") 
+            #could improve by just dropping this test...
+            return
+ 
     df_eol['Capacity retention'] = df_eol['cyc_discharge_capacity']/cap_initial
     
     # logic to calculate the cycle to cap_percent percent capacity. Can't just take the first value that matches, because could have a dip for other reasons.
@@ -154,7 +168,7 @@ def cyc_end_of_life(df,name,cap_percent, predict):
     return end_cyc   
 
 
-def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,trs = None):
+def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,trs = None,dataset_group = None, ref_cyc = 1):
     ''' 
     From a list of test records, return a dataframe X of all calculated features 
     and a dataframe y containing the log cycle life values
@@ -166,6 +180,7 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
     '''
     # initialize lists for each feature calculation
     device_name = []
+    group = []
     
     #discharge cap difference related
     min_deltaQ = []
@@ -176,13 +191,13 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
     deltaQ_lowV = []
 
     # other discharge
-    slope_2_100 = []
-    intcpt_2_100 = []
-    slope_91_100 = []
-    intcpt_91_100 = []
-    q_2 = []
-    maxQ_q2 = []
-    q_100 = []
+    slope_startplus2_end = []
+    intcpt_startplus2_end = []
+    slope_endmin9_end = []
+    intcpt_endmin9_end = []
+    q_startplus2 = []
+    maxQ_q_startplus2 = []
+    q_end = []
     total_cycles = []
     avg_cyc_time = []
 
@@ -192,9 +207,9 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
                   '2017-05-12_3_6C-80per_3_6C_CH1_VDF': '2017-06-30_3_6C-80per_3_6C_CH1_VDF', '2017-05-12_3_6C-80per_3_6C_CH3_VDF': '2017-06-30_3_6C-80per_3_6C_CH3_VDF',
                   '2017-05-12_4C-80per_4C_CH6_VDF': '2017-06-30_4C-80per_4C_CH6_VDF'}
 
-    for t in tr_list:
+    for idx, t in enumerate(tr_list):
         # calculate time-series dependend statistics
-
+        group.append(dataset_group[idx])
         data = load_data(t,cycle_start, cycle_end)
 
         interp_data = interpolate_data(data, t.name)
@@ -225,26 +240,27 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
         else:
             cycle = t.get_cycle_stats()
 
+        # drop the first cycle of the cycle stats to eliminate errors associated with partial cycles to start...
+        cycle = cycle.drop(index=0)
+            
         if predict:
             # average cycle time in hours
             avg_cyc_time.append(np.nanmean(cycle.cyc_total_cycle_time)/3600) # might want to adjust this to ignore 0's and -#s
+        # adjust cycle 2 and 91 to be more flexible - use cycle_start + 2 and cycle_end - 9 as the limits
+            
+        cyc_startplus2 = slope_intercept(cycle,cycle_start + 2,cycle_end) # we are zero-indexed instead of 1-indexed
+        cyc_endmin9 = slope_intercept(cycle,cycle_end - 9,cycle_end) # we are zero-indexed instead of 1-indexed
 
-        cyc2 = slope_intercept(cycle,1,cycle_end) # we are zero-indexed instead of 1-indexed
-        cyc91 = slope_intercept(cycle,90,cycle_end) # we are zero-indexed instead of 1-indexed
+        slope_startplus2_end.append(cyc_startplus2[0])
+        intcpt_startplus2_end.append(cyc_startplus2[1])
+        slope_endmin9_end.append(cyc_endmin9[0])
+        intcpt_endmin9_end.append(cyc_endmin9[1])
+        cyc_startplus2_num = cycle_start + 2
+        q_startplus2.append(float(cycle[cycle['cycle_number']==cyc_startplus2_num]['cyc_discharge_capacity']))
+        maxQ_q_startplus2.append(max(cycle['cyc_discharge_capacity']) - float(cycle[cycle['cycle_number']==cyc_startplus2_num]['cyc_discharge_capacity']))
+        q_end.append(float(cycle[cycle['cycle_number']==cycle_end]['cyc_discharge_capacity']))
 
-        slope_2_100.append(cyc2[0])
-        intcpt_2_100.append(cyc2[1])
-        slope_91_100.append(cyc91[0])
-        intcpt_91_100.append(cyc91[1])
-        if 'batch9' in t.name:
-            cyc2_num = 3
-        else:
-            cyc2_num = 1
-        q_2.append(float(cycle[cycle['cycle_number']==cyc2_num]['cyc_discharge_capacity'])) # we are zero-indexed instead of 1-indexed
-        maxQ_q2.append(max(cycle['cyc_discharge_capacity']) - float(cycle[cycle['cycle_number']==cyc2_num]['cyc_discharge_capacity'])) # we are zero-indexed instead of 1-indexed
-        q_100.append(float(cycle[cycle['cycle_number']==cycle_end]['cyc_discharge_capacity']))
-
-        cyc_life = cyc_end_of_life(cycle,t.name,cap_percent, predict)
+        cyc_life = cyc_end_of_life(cycle,t.name,cap_percent, predict,ref_cyc)
 
         if cyc_life == 0:
             y_cyc_life.append("unfinished")
@@ -267,15 +283,16 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
     X['deltaQ_lowV'] = deltaQ_lowV
 
     # other discharge
-    X['slope_2_100'] = slope_2_100
-    X['intcpt_2_100'] = intcpt_2_100
-    X['slope_91_100'] = slope_91_100
-    X['intcpt_91_100'] = intcpt_91_100
-    X['q_2'] = q_2
-    X['maxQ_q2'] = maxQ_q2
-    X['q_100'] = q_100
+    X['slope_'+str(cycle_start+2)+'_'+str(cycle_end)] = slope_startplus2_end
+    X['intcpt_'+str(cycle_start+2)+'_'+str(cycle_end)] = intcpt_startplus2_end
+    X['slope_'+str(cycle_end-9)+'_'+str(cycle_end)] = slope_endmin9_end
+    X['intcpt_'+str(cycle_end-9)+'_'+str(cycle_end)] = intcpt_endmin9_end
+    X['q_'+str(cycle_start+2)] = q_startplus2
+    X['maxQ_q_'+str(cycle_start+2)] = maxQ_q_startplus2
+    X['q_'+str(cycle_end)] = q_end
 
     X['Name'] = device_name
+    X['Dataset_group'] = group
 
     if not predict:
         y = pd.DataFrame(y_cyc_life,columns = ['log_cyc_life'])
