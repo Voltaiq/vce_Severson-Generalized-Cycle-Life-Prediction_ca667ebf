@@ -43,7 +43,7 @@ class CLPrediction:
         self.y_predict = pd.DataFrame()
         self.avg_cyc_time = []
         self.total_cycles_predict = pd.DataFrame()
-        self.capacity_retention_threshold = 0.85 # default at 0.85, might want to change this...
+        self.capacity_retention_threshold = 85 # default at 0.85, might want to change this...
         self.start_cycle = 9 # also likely don't want to hard-code this in this way
         self.end_cycle = 99 # also likely don't want to hard-code this in this way
         self.reference_cycle = 1

@@ -147,7 +147,7 @@ def cyc_end_of_life(df,name,cap_percent, predict,ref_cyc):
     # look for 5 consecutive cycles that are below cap_percent %, then choose the first of those
 
     # series showing all indices where the capacity retention is less than cap_percent    
-    indices_below_cap_percent = pd.Series(df_eol[df_eol['Capacity retention']<=cap_percent]['cycle_number'].index)
+    indices_below_cap_percent = pd.Series(df_eol[df_eol['Capacity retention']<=cap_percent/100]['cycle_number'].index)
     # We want at least 5 consecutive data points below this capacity; this can only happen if there are at least 5 indices present
     if len(indices_below_cap_percent) > 5:
         # calculate the difference in indices - we want this difference to be 1 for 5 consecutive cycles
@@ -161,10 +161,10 @@ def cyc_end_of_life(df,name,cap_percent, predict,ref_cyc):
             if end_cyc <0:
                 end_cyc = indices_below_cap_percent[consecutive_cycles[0]]
         else:       
-            print(f"Test {name} does not reach {cap_percent*100}%. Second-to-last cycle capacity retention: {df_eol['Capacity retention'].iloc[-2]*100}%")
+            print(f"Test {name} does not reach {cap_percent}%. Second-to-last cycle capacity retention: {df_eol['Capacity retention'].iloc[-2]*100}%")
     else:
         if not predict:
-            print(f"Test {name} does not reach {cap_percent*100}%. Second-to-last cycle capacity retention: {df_eol['Capacity retention'].iloc[-2]*100}%")
+            print(f"Test {name} does not reach {cap_percent}%. Second-to-last cycle capacity retention: {df_eol['Capacity retention'].iloc[-2]*100}%")
     return end_cyc   
 
 
