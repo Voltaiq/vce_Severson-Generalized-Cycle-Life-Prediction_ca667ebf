@@ -167,13 +167,13 @@ def cap_ret_reached(t,cap_percent,pred_obj,ref_cyc):
     try:
         cap_initial = float(df_eol[df_eol['cycle_number']==ref_cyc]['cyc_discharge_capacity'])
     except:
-        print(f"Cycle {ref_cyc} does not exist for test {name}. Attempting to use cycle ordinal instead.")
+        print(f"Cycle {ref_cyc} does not exist for test {t.name}. Attempting to use cycle ordinal instead.")
         try:
             ref_cycle = df_eol.cycle_number.iloc[ref_cyc]
             cap_initial = df_eol['cyc_discharge_capacity'].iloc[ref_cyc]
-            print(f"Using reference cycle {ref_cycle} for test {name}")
+            print(f"Using reference cycle {ref_cycle} for test {t.name}")
         except:
-            print(f"No appropriate cycle could be chosen for test {name}. Aborting featurization.") 
+            print(f"No appropriate cycle could be chosen for test {t.name}. Aborting featurization.") 
             #could improve by just dropping this test...
             return False
 #     try:

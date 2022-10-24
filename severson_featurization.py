@@ -209,6 +209,7 @@ def calc_X_and_y(tr_list,cycle_start, cycle_end, cap_percent, predict = False,tr
 
     for idx, t in enumerate(tr_list):
         # calculate time-series dependend statistics
+        print(f"{idx+1}/{len(tr_list)}: Calculating features for test record {t.name}")
         group.append(dataset_group[idx])
         data = load_data(t,cycle_start, cycle_end)
 

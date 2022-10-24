@@ -163,7 +163,7 @@ class TrainedModel:
                                 min(self.y_test.log_cyc_life),
                                 min(self.train_predict),
                                 min(self.test_predict)])
-        plt.plot([min_axis,max_axis],[min_axis,max_axis])
+        plt.plot([min_axis,max_axis],[min_axis,max_axis],'k')
         plt.legend(bbox_to_anchor=(1, 0.5),loc = 'center left') # uncomment to get legend
         # ax.set_ylim(0,5000)
         # ax.set_xlim(0,5000)
