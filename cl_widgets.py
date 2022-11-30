@@ -11,7 +11,12 @@ std_train_datasets = ['Severson2019 - All (LFP)','Severson2019 - Train (LFP)',
                       'Severson2019 - Test (LFP)','Severson2019 - Test2 (LFP)','Attia2020 (LFP)',
                       'Devie2018 (NMC/LCO)','He2011 (LCO)','Juarez-Robles2020 (NCA)',
                       'Weng2021 (NMC)','Mohtat2021 (NMC)','Custom']
-
+def set_model(model_choice, prediction_object, model_options):
+    set_models = list(model_choice)
+    if 'All' in model_choice:
+        set_models = list(model_options)
+        set_models.remove('All')
+    prediction_object.set_model(set_models)
 
 def get_standard_datasets(trs):
     # Severson train_test_test2 split
@@ -207,8 +212,24 @@ def filter_min_cap_retention(cap_retention,trs_list,pred_obj):
     return [t for t in trs_list if cap_ret_reached(t,cap_retention,pred_obj, pred_obj.reference_cycle)]
     
 def custom_select(filter_by_cap_retention,min_cyc_num,other_search_text, train_or_test, prediction1, trs):
+    ''' 
+    This function enables any custom datasets that are searched for and selected by a user to be added to the test record list for either the Train, Test or Predict datasets.
+    
+    Inputs:
+    filter_by_cap_retention: checkbox widget - based on whether the 'Filter by capacity retention' checkbox was checked.
+    min_cyc_num: IntText widget - the minimum cycle number input that a user chose based on the input widget provided
+    other_search_text: Text widget - the search text that a user types into the search box for test name searching
+    train_or_test: "train", "test" or "predict" based on which dataset a user is trying to add to
+    prediction1: the CLPrediction object on which to act
+    trs: the list of test record objects from Voltaiq
+    
+    Outputs:
+    None directly. It sets the correct attributes of the CLPrediction object prediction1 (which is passed into the function).
+    
+    '''
     # search for tests containing other_search_text
     test_list = []
+    # only takes action if the search text box is not empty
     if other_search_text != '':
         if other_search_text != prediction1.get_last_custom_search():
             search_changed = True
@@ -272,6 +293,19 @@ def custom_select(filter_by_cap_retention,min_cyc_num,other_search_text, train_o
         clear_all_tests_button.on_click(clear_tst_button)
         
 def select_widget(train_sets, train_or_test,pred_obj, trs, predict_button = None):
+    ''' this function handles the selection of data for the train, test and prediction datasets.
+    
+    Inputs:
+    - train_sets: the selected datasets from the curated list. Can include any number of curated datasets or 'custom'
+    - train_or_test: whether the function is being called for the Train, Test or Predict dataset
+    - pred_obj: passing in the prediction object (from the CLPrediction class) that we would like to modify/update
+    - trs: a list of all test record objects that were loaded by the script
+    - predict_button: in the case of the prediction dataset selection, we also pass in the button widget for completing the prediction so that we can enable it once a dataset is selected
+    
+    Returns:
+    Nothing. This function will manipulate and set the correct datasets on the prediction object. If 'Custom' has been chosen it will activate the custom_select widget for further user input. The function will also print out helpful information about which datasets have been selected.
+    
+    '''
     train_list = list(train_sets)
     if len(train_list ) > 0:
         if train_or_test == 'predict':
@@ -285,6 +319,7 @@ def select_widget(train_sets, train_or_test,pred_obj, trs, predict_button = None
                                       min_cyc_num = widgets.IntText(description = 'Minimum # of cycles:',
                                                                     style={'description_width': 'initial'}, 
                                                                     value = pred_obj.get_end_cycle()+1),
+                                      # the other_search_text widget is pre-populated with whatever a user last searched for. If no search has been done, will be blank
                                       other_search_text = widgets.Text(value = pred_obj.get_last_custom_search(),
                                                                        description='Test name search:',
                                                                        style={'description_width': 'initial'},
@@ -300,7 +335,7 @@ def select_widget(train_sets, train_or_test,pred_obj, trs, predict_button = None
             train_list.remove('Custom')
             
         if 'Custom' not in train_sets:
-            # need to remove fields from the custom list
+            # need to remove fields from the custom list if a user has deselected 'custom' from the initial dataset list
             pred_obj.replace_train_test_list_custom((),train_or_test)
         pred_obj.set_train_test_list(train_list,train_or_test)
         print(train_or_test, " datasets selected: ", pred_obj.get_train_test_list(train_or_test))

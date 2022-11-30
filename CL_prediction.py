@@ -17,7 +17,7 @@ from ML_models import TrainedModel
 
 class CLPrediction:
     ''' 
-    Class to manipulate and store information for a prediction dataset.
+    Class to manipulate and store information for a prediction session.
     This includes adding test names, storing test data, featurizing that data, 
     performing a train/test split (if relevant), etc.
     '''
