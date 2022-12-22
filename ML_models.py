@@ -2,6 +2,7 @@ from sklearn.dummy import DummyRegressor
 from sklearn.linear_model import ElasticNetCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 import numpy as np
@@ -79,6 +80,20 @@ class TrainedModel:
 #             self.test_predict = self.dummy_regr.predict(self.X_test)
             print("Completed training Dummy model")
     
+        elif self.model == "Severson discharge XGBoost":
+            print("Training XGBoost model on Severson discharge features")
+            self.X_train = self.X_train.drop(columns = ['Name','Dataset_group']) #'deltaQ_lowV'
+            self.X_test = self.X_test.drop(columns = ['Name','Dataset_group']) #,'deltaQ_lowV'
+            self.X_test_array = np.array(self.X_test)
+
+            # would likely be great to include some sort of gridsearch of tunable parameters...
+            self.pipeline =  Pipeline([('scaler', StandardScaler()), ('xgboost', xgb.XGBRegressor(max_depth=10,n_estimators=50))])
+            self.pipeline.fit(np.array(self.X_train), np.ravel(self.y_train))
+            self.pipeline.fit(np.array(self.X_train), np.ravel(self.y_train))
+
+            self.train_predict = self.pipeline.predict(np.array(self.X_train))
+            print("Completed training XGBoost model on Severson discharge features")
+    
     def test_prediction(self):
         ''' function to predict outputs of test data'''
         self.test_predict = self.pipeline.predict(self.X_test_array)
@@ -95,6 +110,9 @@ class TrainedModel:
             self.X_predict_array = np.array(self.X_predict)
         elif self.model == 'Dummy':
             self.X_predict_array = self.X_predict
+        elif self.model == "Severson discharge XGBoost":
+            self.X_predict = self.X_predict.drop(columns = ['Name','Dataset_group'])
+            self.X_predict_array = np.array(self.X_predict)
         self.predict_predict = self.pipeline.predict(self.X_predict_array)
         print("Completed predicting outcome for " + self.model + " model")
     
