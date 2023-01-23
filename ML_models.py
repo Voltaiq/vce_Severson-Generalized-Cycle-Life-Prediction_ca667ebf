@@ -3,12 +3,12 @@ from sklearn.linear_model import ElasticNetCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 import xgboost as xgb
+from mapie.regression import MapieRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
 
     
 class TrainedModel:
@@ -20,6 +20,7 @@ class TrainedModel:
         self.model = model
         self.train_test_data = train_test_tuple
         self.pipeline = None
+        self.mapie = None
         self.X_train_full = train_test_tuple[0]
         self.X_test_full = train_test_tuple[1]
         self.X_train = train_test_tuple[0]
@@ -30,8 +31,11 @@ class TrainedModel:
         self.X_predict = ()
         self.X_test_array = None
         self.train_predict = None
+        self.train_pis = None
         self.test_predict = None
+        self.test_pis = None
         self.predict_predict = None
+        self.predict_pis = None
         self.l1_ratios = [0.1, 0.5, 0.7, 0.9, 0.95, 0.99, 1]
         
     def get_train_test_data(self):
@@ -49,9 +53,11 @@ class TrainedModel:
             self.X_train = self.X_train['var_deltaQ']
             self.X_test = self.X_test['var_deltaQ']
             self.X_test_array = np.array(self.X_test).reshape(-1, 1)
+            
+            self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
 
-            self.pipeline.fit(np.array(self.X_train).reshape(-1, 1), np.ravel(self.y_train))
-            self.train_predict = self.pipeline.predict(np.array(self.X_train).reshape(-1, 1))
+            self.mapie.fit(np.array(self.X_train).reshape(-1, 1), np.ravel(self.y_train))
+            self.train_predict, self.train_pis = self.mapie.predict(np.array(self.X_train).reshape(-1, 1), alpha=[0.05])
 
 
             print("Completed training Severson variance model")
@@ -64,19 +70,25 @@ class TrainedModel:
             self.X_test_array = np.array(self.X_test)
 
             self.pipeline =  Pipeline([('scaler', StandardScaler()), ('enet', ElasticNetCV(l1_ratio=self.l1_ratios, cv=5, random_state=0, max_iter = 25000))])
-            self.pipeline.fit(np.array(self.X_train), np.ravel(self.y_train))
+            
+            self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
+            
+            self.mapie.fit(np.array(self.X_train), np.ravel(self.y_train))
 
-            self.train_predict = self.pipeline.predict(np.array(self.X_train))
+            self.train_predict, self.train_pis = self.mapie.predict(np.array(self.X_train), alpha=[0.05])
             print("Completed training Severson discharge model")
 #             self.test_predict = self.pipeline.predict(np.array(self.X_test))
 
         elif self.model == 'Dummy':
             print("Training Dummy model")
             self.pipeline = Pipeline([('dummy',DummyRegressor())])
-            self.pipeline.fit(self.X_train, self.y_train)
+            
+            self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
+            self.mapie.fit(self.X_train, self.y_train)
             self.X_test_array = self.X_test
+            
 
-            self.train_predict = self.pipeline.predict(self.X_train)
+            self.train_predict, self.train_pis = self.mapie.predict(self.X_train, alpha=[0.05])
 #             self.test_predict = self.dummy_regr.predict(self.X_test)
             print("Completed training Dummy model")
     
@@ -88,15 +100,17 @@ class TrainedModel:
 
             # would likely be great to include some sort of gridsearch of tunable parameters...
             self.pipeline =  Pipeline([('scaler', StandardScaler()), ('xgboost', xgb.XGBRegressor(max_depth=10,n_estimators=50))])
-            self.pipeline.fit(np.array(self.X_train), np.ravel(self.y_train))
-            self.pipeline.fit(np.array(self.X_train), np.ravel(self.y_train))
+            
+            self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
+            
+            self.mapie.fit(np.array(self.X_train), np.ravel(self.y_train))
 
-            self.train_predict = self.pipeline.predict(np.array(self.X_train))
+            self.train_predict, self.train_pis = self.mapie.predict(np.array(self.X_train), alpha=[0.05])
             print("Completed training XGBoost model on Severson discharge features")
     
     def test_prediction(self):
         ''' function to predict outputs of test data'''
-        self.test_predict = self.pipeline.predict(self.X_test_array)
+        self.test_predict, self.test_pis = self.mapie.predict(self.X_test_array, alpha=[0.05])
         print("Completed predicting test output for " + self.model + " model")
 
     def predict(self, X_predict):
@@ -113,7 +127,7 @@ class TrainedModel:
         elif self.model == "Severson discharge XGBoost":
             self.X_predict = self.X_predict.drop(columns = ['Name','Dataset_group'])
             self.X_predict_array = np.array(self.X_predict)
-        self.predict_predict = self.pipeline.predict(self.X_predict_array)
+        self.predict_predict, self.predict_pis = self.mapie.predict(self.X_predict_array, alpha=[0.05])
         print("Completed predicting outcome for " + self.model + " model")
     
     def get_prediction(self, predict = False):
