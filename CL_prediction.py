@@ -389,9 +389,20 @@ class CLPrediction:
         # if the number here is negative, replace with zero
         
     def return_predicted_cyclelife(self,model = 'Combined'):
-        ''' function that returns a dataframe of predicted cycle life values for each test name in the prediction list'''
+        ''' function that returns a dataframe of predicted cycle life values, and array of error values, and a dataframe indicating the amount of time predicted for each test name in the prediction list'''
         return self.model_predicted_cyclelife[model], self.model_predicted_cyclelife_errors[model], self.model_predicted_timeleft[model]
-
+    
+    def get_predicted_cyclelife_with_error(self):
+        ''' function that returns a dataframe of predicted cycle life values including error bar information'''
+        pred_cycle_life = self.model_predicted_cyclelife['Combined'].copy()
+        for i, model in enumerate(self.ml_model):
+            lower_error = self.model_predicted_cyclelife_errors['Combined'][i][0]
+            upper_error = self.model_predicted_cyclelife_errors['Combined'][i][1]
+            pred_cycle_life[model+' Predicted Cycle Life error'] = [[lower_error[j], upper_error[j]] for j in range(len(lower_error))]
+        pred_cycle_life = pred_cycle_life.reindex(sorted(pred_cycle_life.columns), axis=1)
+        pred_cycle_life = pred_cycle_life.set_index('Name')
+        return pred_cycle_life
+        
 
     def grouped_feature_distribution(self, feature):
         ''' function that returns a grouped box plot of the feature distribution for a specific chosen feature'''
