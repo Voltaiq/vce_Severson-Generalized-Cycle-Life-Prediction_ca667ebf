@@ -11,7 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
     
-class TrainedModel:
+class Model:
     ''' class of trained models'''
     
     

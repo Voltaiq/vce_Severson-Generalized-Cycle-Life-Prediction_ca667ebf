@@ -10,7 +10,7 @@ import importlib
 importlib.reload(ML_models)
 importlib.reload(severson_featurization)
 from severson_featurization import calc_X_and_y, drop_unfinished_tests
-from ML_models import TrainedModel
+from ML_models import Model
 
 
 
@@ -56,6 +56,7 @@ class CLPrediction:
         self.model_predicted_cyclelife = {}
         self.model_predicted_cyclelife_errors = {}
         self.model_predicted_timeleft = {}
+        self.mapie_error = True
 
     
     def set_train_test_list(self, train_list_add, train_vs_test):
@@ -239,7 +240,7 @@ class CLPrediction:
         # reset the trained models dataframe
         self.trained_models = {}
         for model in self.ml_model:
-            self.trained_models[model] = TrainedModel(model, (self.X_train, self.X_test, 
+            self.trained_models[model] = Model(model, (self.X_train, self.X_test, 
                                                               self.y_train, self.y_test))
             self.trained_models[model].train_model()
 
