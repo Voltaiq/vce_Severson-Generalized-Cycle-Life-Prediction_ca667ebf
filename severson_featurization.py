@@ -44,12 +44,14 @@ def load_data(test,cyc_1, cyc_2):
     Return a pandas dataframe
     '''
 #     test.clear_cache()
-    reader = test.make_time_series_reader()
-    reader.add_trace_keys('h_potential','h_discharge_capacity','h_test_time', 'h_current')
-    reader.filter_trace('h_current', TraceFilterOperation.LESS_THAN, 0)
-    reader.add_info_keys('i_cycle_num')
-    reader.filter_cycle_list([cyc_1, cyc_2]) 
-
+    try:
+        reader = test.make_time_series_reader()
+        reader.add_trace_keys('h_potential','h_discharge_capacity','h_test_time', 'h_current')
+        reader.filter_trace('h_current', TraceFilterOperation.LESS_THAN, 0)
+        reader.add_info_keys('i_cycle_num')
+        reader.filter_cycle_list([cyc_1, cyc_2]) 
+    except:
+        return pd.DataFrame()
     return reader.read_pandas()
 
 def interpolate_data(df, name):
