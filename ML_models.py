@@ -16,7 +16,7 @@ class Model:
     
     
     
-    def __init__(self, model, train_test_tuple):
+    def __init__(self, model, train_test_tuple, use_mapie):
         self.model = model
         self.train_test_data = train_test_tuple
         self.pipeline = None
@@ -37,6 +37,7 @@ class Model:
         self.predict_predict = None
         self.predict_pis = None
         self.l1_ratios = [0.1, 0.5, 0.7, 0.9, 0.95, 0.99, 1]
+        self.mapie_error = use_mapie
         
     def get_train_test_data(self):
         return self.train_test_data
@@ -46,6 +47,8 @@ class Model:
     
     def train_model(self):
         ''' function to train the model. Training will depend on model type'''
+        # add use mapie logic here
+        
         if self.model == 'Severson variance':
             print("Training Severson variance model")
             self.pipeline = Pipeline([('scaler', StandardScaler()), ('enet', ElasticNetCV(l1_ratio=self.l1_ratios, cv=5, random_state=0, max_iter = 25000))])
@@ -53,12 +56,15 @@ class Model:
             self.X_train = self.X_train['var_deltaQ']
             self.X_test = self.X_test['var_deltaQ']
             self.X_test_array = np.array(self.X_test).reshape(-1, 1)
-            
-            self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
+            if self.mapie_error:
+                self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
 
-            self.mapie.fit(np.array(self.X_train).reshape(-1, 1), np.ravel(self.y_train))
-            self.train_predict, self.train_pis = self.mapie.predict(np.array(self.X_train).reshape(-1, 1), alpha=[0.05])
-
+                self.mapie.fit(np.array(self.X_train).reshape(-1, 1), np.ravel(self.y_train))
+                self.train_predict, self.train_pis = self.mapie.predict(np.array(self.X_train).reshape(-1, 1), alpha=[0.05])
+            else:
+                self.pipeline.fit(np.array(self.X_train).reshape(-1, 1), np.ravel(self.y_train))
+                self.train_predict = self.pipeline.predict(np.array(self.X_train).reshape(-1, 1))
+                
 
             print("Completed training Severson variance model")
 #             self.test_predict = self.pipeline.predict(np.array(self.X_test).reshape(-1, 1))
@@ -70,25 +76,32 @@ class Model:
             self.X_test_array = np.array(self.X_test)
 
             self.pipeline =  Pipeline([('scaler', StandardScaler()), ('enet', ElasticNetCV(l1_ratio=self.l1_ratios, cv=5, random_state=0, max_iter = 25000))])
-            
-            self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
-            
-            self.mapie.fit(np.array(self.X_train), np.ravel(self.y_train))
+            if self.mapie_error:
+                self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
+                # also train the pipeline itself to be able to access the named steps
+                self.pipeline.fit(np.array(self.X_train), np.ravel(self.y_train))
+                self.mapie.fit(np.array(self.X_train), np.ravel(self.y_train))
+                
 
-            self.train_predict, self.train_pis = self.mapie.predict(np.array(self.X_train), alpha=[0.05])
+                self.train_predict, self.train_pis = self.mapie.predict(np.array(self.X_train), alpha=[0.05])
+            else:
+                self.pipeline.fit(np.array(self.X_train), np.ravel(self.y_train))
+                self.train_predict = self.pipeline.predict(np.array(self.X_train))
             print("Completed training Severson discharge model")
 #             self.test_predict = self.pipeline.predict(np.array(self.X_test))
 
         elif self.model == 'Dummy':
             print("Training Dummy model")
             self.pipeline = Pipeline([('dummy',DummyRegressor())])
-            
-            self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
-            self.mapie.fit(self.X_train, self.y_train)
             self.X_test_array = self.X_test
-            
+            if self.mapie_error:
+                self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
+                self.mapie.fit(self.X_train, self.y_train)
 
-            self.train_predict, self.train_pis = self.mapie.predict(self.X_train, alpha=[0.05])
+                self.train_predict, self.train_pis = self.mapie.predict(self.X_train, alpha=[0.05])
+            else:
+                self.pipeline.fit(self.X_train, self.y_train)
+                self.train_predict = self.pipeline.predict(self.X_train)
 #             self.test_predict = self.dummy_regr.predict(self.X_test)
             print("Completed training Dummy model")
     
@@ -100,17 +113,23 @@ class Model:
 
             # would likely be great to include some sort of gridsearch of tunable parameters...
             self.pipeline =  Pipeline([('scaler', StandardScaler()), ('xgboost', xgb.XGBRegressor(max_depth=10,n_estimators=50))])
+            if self.mapie_error:
+                self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
             
-            self.mapie = MapieRegressor(self.pipeline, method="plus", cv=10)
-            
-            self.mapie.fit(np.array(self.X_train), np.ravel(self.y_train))
+                self.mapie.fit(np.array(self.X_train), np.ravel(self.y_train))
 
-            self.train_predict, self.train_pis = self.mapie.predict(np.array(self.X_train), alpha=[0.05])
+                self.train_predict, self.train_pis = self.mapie.predict(np.array(self.X_train), alpha=[0.05])
+            else:
+                self.pipeline.fit(np.array(self.X_train), np.ravel(self.y_train))
+                self.train_predict = self.pipeline.predict(np.array(self.X_train))
             print("Completed training XGBoost model on Severson discharge features")
     
     def test_prediction(self):
         ''' function to predict outputs of test data'''
-        self.test_predict, self.test_pis = self.mapie.predict(self.X_test_array, alpha=[0.05])
+        if self.mapie_error:
+            self.test_predict, self.test_pis = self.mapie.predict(self.X_test_array, alpha=[0.05])
+        else:
+            self.test_predict = self.pipeline.predict(self.X_test_array)
         print("Completed predicting test output for " + self.model + " model")
 
     def predict(self, X_predict):
@@ -127,7 +146,10 @@ class Model:
         elif self.model == "Severson discharge XGBoost":
             self.X_predict = self.X_predict.drop(columns = ['Name','Dataset_group'])
             self.X_predict_array = np.array(self.X_predict)
-        self.predict_predict, self.predict_pis = self.mapie.predict(self.X_predict_array, alpha=[0.05])
+        if self.mapie_error:
+            self.predict_predict, self.predict_pis = self.mapie.predict(self.X_predict_array, alpha=[0.05])
+        else:
+            self.predict_predict = self.pipeline.predict(self.X_predict_array)
         print("Completed predicting outcome for " + self.model + " model")
     
     def get_prediction(self, predict = False):
@@ -176,26 +198,34 @@ class Model:
             train_idx = self.X_train_full[self.X_train_full.Dataset_group == group].index
             model_resetidx = self.X_train_full.reset_index()
             train_reset_idx = model_resetidx[model_resetidx['index'].isin(train_idx)].index
-            lower_bounds = self.train_pis[:, 0, 0].T[train_reset_idx]
-            upper_bounds = self.train_pis[:, 1, 0].T[train_reset_idx]
-            y_err = np.abs([10**lower_bounds, 10**upper_bounds] - 10**self.train_predict[train_reset_idx])
-            plt.errorbar(x = 10**self.y_train.log_cyc_life[train_idx],
-                         y = 10**self.train_predict[train_reset_idx],
-                         yerr = y_err, capsize = 3,linestyle='',
-                        label = 'Train '+group, marker = 'o',alpha = 0.6)#, c = '#68CCCA')
-
+            if self.mapie_error:
+                lower_bounds = self.train_pis[:, 0, 0].T[train_reset_idx]
+                upper_bounds = self.train_pis[:, 1, 0].T[train_reset_idx]
+                y_err = np.abs([10**lower_bounds, 10**upper_bounds] - 10**self.train_predict[train_reset_idx])
+                plt.errorbar(x = 10**self.y_train.log_cyc_life[train_idx],
+                             y = 10**self.train_predict[train_reset_idx],
+                             yerr = y_err, capsize = 3,linestyle='',
+                            label = 'Train '+group, marker = 'o',alpha = 0.6)#, c = '#68CCCA')
+            else:
+                plt.scatter(x = 10**self.y_train.log_cyc_life[train_idx],
+                             y = 10**self.train_predict[train_reset_idx],
+                            label = 'Train '+group, marker = 'o',alpha = 0.6)
         for group in unique_groups:            
             index = self.X_test_full[self.X_test_full.Dataset_group == group].index
             model_resetidx = self.X_test_full.reset_index()
             reset_idx = model_resetidx[model_resetidx['index'].isin(index)].index
-            lower_bounds = self.test_pis[:, 0, 0].T[reset_idx]
-            upper_bounds = self.test_pis[:, 1, 0].T[reset_idx]
-            y_err = np.abs([10**lower_bounds, 10**upper_bounds] - 10**self.test_predict[reset_idx])
-            plt.errorbar(x = 10**self.y_test.log_cyc_life[index],
-                        y = 10**self.test_predict[reset_idx],
-                        yerr = y_err, capsize = 3,linestyle='',
-                        label = 'Test '+group, alpha = 0.6,marker='v')#,c = '#FDA1FF')
-
+            if self.mapie_error:
+                lower_bounds = self.test_pis[:, 0, 0].T[reset_idx]
+                upper_bounds = self.test_pis[:, 1, 0].T[reset_idx]
+                y_err = np.abs([10**lower_bounds, 10**upper_bounds] - 10**self.test_predict[reset_idx])
+                plt.errorbar(x = 10**self.y_test.log_cyc_life[index],
+                            y = 10**self.test_predict[reset_idx],
+                            yerr = y_err, capsize = 3,linestyle='',
+                            label = 'Test '+group, alpha = 0.6,marker='v')#,c = '#FDA1FF')
+            else:
+                plt.scatter(x = 10**self.y_test.log_cyc_life[index],
+                            y = 10**self.test_predict[reset_idx],
+                            label = 'Test '+group, alpha = 0.6,marker='v')
         max_axis = 10**max([max(self.y_train.log_cyc_life),
                                 max(self.y_test.log_cyc_life),
                                 max(self.train_predict),

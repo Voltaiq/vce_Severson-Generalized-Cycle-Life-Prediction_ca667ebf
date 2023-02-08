@@ -56,7 +56,7 @@ class CLPrediction:
         self.model_predicted_cyclelife = {}
         self.model_predicted_cyclelife_errors = {}
         self.model_predicted_timeleft = {}
-        self.mapie_error = True
+        self.mapie = True
 
     
     def set_train_test_list(self, train_list_add, train_vs_test):
@@ -186,6 +186,10 @@ class CLPrediction:
         ''' set reference cycle for featurization'''
         self.reference_cycle = int(ref_cyc)
     
+    def get_use_mapie(self):
+        """ function that returns True if mapie error was calculated, False if not"""
+        return self.mapie
+    
     def featurize(self,trs):
         ''' function to featurize the train and/or test data. will have to determine if train and/or test data exists'''
         # start with training data:
@@ -235,13 +239,14 @@ class CLPrediction:
         ''' function to set the ML model to use'''
         self.ml_model = model
     
-    def train_model(self):
+    def train_model(self, use_mapie):
         ''' train models listed in self.ml_model'''
         # reset the trained models dataframe
         self.trained_models = {}
+        self.mapie = use_mapie
         for model in self.ml_model:
             self.trained_models[model] = Model(model, (self.X_train, self.X_test, 
-                                                              self.y_train, self.y_test))
+                                                              self.y_train, self.y_test), use_mapie)
             self.trained_models[model].train_model()
 
             
@@ -355,10 +360,11 @@ class CLPrediction:
         ''' function that calculates and stores predicted cycle lives in dataframes for each model; stored as a dictionary'''
         for model in self.ml_model:
             cycle_life = 10**self.trained_models[model].get_prediction(predict=True)
-            upper_bounds = 10**self.trained_models[model].predict_pis[:, 1, 0].T
-            lower_bounds = 10**self.trained_models[model].predict_pis[:, 0, 0].T
-            lower_err = np.abs(lower_bounds - cycle_life)
-            upper_err = np.abs(upper_bounds - cycle_life)
+            if self.mapie:
+                upper_bounds = 10**self.trained_models[model].predict_pis[:, 1, 0].T
+                lower_bounds = 10**self.trained_models[model].predict_pis[:, 0, 0].T
+                lower_err = np.abs(lower_bounds - cycle_life)
+                upper_err = np.abs(upper_bounds - cycle_life)
             names = self.X_predict.Name
             # calculate a predicted time to failure for each test:
             # (predicted cycle - current cycle) * avg cycle time
@@ -370,7 +376,8 @@ class CLPrediction:
                                                                   str(model) + ' Predicted Cycle Life':cycle_life})
             self.model_predicted_timeleft[model] = pd.DataFrame({'Name':names,
                                                                  str(model) + ' Time to Failure (h)':pred_failure_time})
-            self.model_predicted_cyclelife_errors[model] = [lower_err, upper_err]
+            if self.mapie:
+                self.model_predicted_cyclelife_errors[model] = [lower_err, upper_err]
             
         self.model_predicted_cyclelife['Combined'] = reduce(lambda x, y: pd.merge(x, y, on = 'Name'), 
                                                             [self.model_predicted_cyclelife[model] 
@@ -383,15 +390,18 @@ class CLPrediction:
         self.model_predicted_timeleft['Combined'] = reduce(lambda x, y: pd.merge(x, y, on = 'Name'), [self.model_predicted_timeleft[model] for model in self.ml_model]) 
         idx_to_drop = self.model_predicted_cyclelife['Combined'][self.model_predicted_cyclelife['Combined'][f'Cycle to {self.capacity_retention_threshold}% capacity retention'] != 0].index
         self.model_predicted_timeleft['Combined'].drop(index = idx_to_drop, inplace = True)
-        
-        self.model_predicted_cyclelife_errors['Combined'] = [self.model_predicted_cyclelife_errors[model] for model in self.ml_model]
+        if self.mapie:
+            self.model_predicted_cyclelife_errors['Combined'] = [self.model_predicted_cyclelife_errors[model] for model in self.ml_model]
         # will want to add in TIME TO FAILURE = (pred cycle - curr cycle) * avg cycle time
 #         self.model_predicted_cyclelife['Combined']['Predicted time to failure (days)'] = 
         # if the number here is negative, replace with zero
         
     def return_predicted_cyclelife(self,model = 'Combined'):
         ''' function that returns a dataframe of predicted cycle life values, and array of error values, and a dataframe indicating the amount of time predicted for each test name in the prediction list'''
-        return self.model_predicted_cyclelife[model], self.model_predicted_cyclelife_errors[model], self.model_predicted_timeleft[model]
+        if self.mapie:
+            return self.model_predicted_cyclelife[model], self.model_predicted_cyclelife_errors[model], self.model_predicted_timeleft[model]
+        else:
+            return self.model_predicted_cyclelife[model], self.model_predicted_timeleft[model]
     
     def get_predicted_cyclelife_with_error(self):
         ''' function that returns a dataframe of predicted cycle life values including error bar information'''
@@ -434,23 +444,27 @@ class CLPrediction:
                 pred_dict[model] = pd.DataFrame()
                 pred_dict[model]['Name'] = self.X_train['Name']
                 cycle_life = np.power(10,self.trained_models[model].get_prediction()[0])
-                upper_bounds = 10**self.trained_models[model].train_pis[:, 1, 0].T
-                lower_bounds = 10**self.trained_models[model].train_pis[:, 0, 0].T
-                lower_err = np.abs(lower_bounds - cycle_life)
-                upper_err = np.abs(upper_bounds - cycle_life)
+                if self.mapie:
+                    upper_bounds = 10**self.trained_models[model].train_pis[:, 1, 0].T
+                    lower_bounds = 10**self.trained_models[model].train_pis[:, 0, 0].T
+                    lower_err = np.abs(lower_bounds - cycle_life)
+                    upper_err = np.abs(upper_bounds - cycle_life)
+                    pred_dict[model][model+' Predicted CL error'] = [[lower_err[i], upper_err[i]] for i in range(len(lower_err))]
                 pred_dict[model][model+' Predicted cycle life'] = cycle_life
-                pred_dict[model][model+' Predicted CL error'] = [[lower_err[i], upper_err[i]] for i in range(len(lower_err))]
+                
         elif train_test == 'test':
             for model in self.ml_model:
                 pred_dict[model] = pd.DataFrame()
                 pred_dict[model]['Name'] = self.X_test['Name']
                 cycle_life = np.power(10,self.trained_models[model].get_prediction()[1])
-                upper_bounds = 10**self.trained_models[model].test_pis[:, 1, 0].T
-                lower_bounds = 10**self.trained_models[model].test_pis[:, 0, 0].T
-                lower_err = np.abs(lower_bounds - cycle_life)
-                upper_err = np.abs(upper_bounds - cycle_life)
+                if self.mapie:
+                    upper_bounds = 10**self.trained_models[model].test_pis[:, 1, 0].T
+                    lower_bounds = 10**self.trained_models[model].test_pis[:, 0, 0].T
+                    lower_err = np.abs(lower_bounds - cycle_life)
+                    upper_err = np.abs(upper_bounds - cycle_life)
+                    pred_dict[model][model+' Predicted CL error'] = [[lower_err[i], upper_err[i]] for i in range(len(lower_err))]
                 pred_dict[model][model+' Predicted cycle life'] = cycle_life
-                pred_dict[model][model+' Predicted CL error'] = [[lower_err[i], upper_err[i]] for i in range(len(lower_err))]
+                
         pred_df = reduce(lambda x, y: pd.merge(x, y, on = 'Name'),[pred_dict[model] for model in self.ml_model])
         if train_test == 'train':
             pred_df['Actual cycle life'] = np.power(10, self.y_train)
